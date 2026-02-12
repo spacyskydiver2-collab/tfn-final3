@@ -24,6 +24,10 @@ export type AccountProfile = {
   commanders: CommanderGoal[]
   wofTargetSpins: number
   wofBundles: Record<string, boolean>
+  /** Maps wheel occurrence key → commander id for direct head assignment */
+  wofCommanderAssignments?: Record<string, string>
+  /** Whether to use SoC timeline mode in Wheel Tracker */
+  wofUseSocTimeline?: boolean
 }
 
 export type OccOutcome = 'default' | 'win' | 'loss' | 'complete' | 'skip' | null

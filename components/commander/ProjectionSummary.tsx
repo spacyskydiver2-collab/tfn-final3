@@ -72,7 +72,34 @@ export function ProjectionSummary({ profile }: { profile: AccountProfile }) {
     ? Math.min(100, Math.round((totalHeadsExpected / totalHeadsNeeded) * 100))
     : 0
 
-  const commanderBreakdown = distributeHeadsByAllocation(totalHeadsExpected, profile.commanders)
+  /* ---------- Wheel heads per commander (direct assignment) ---------- */
+  const wofAssignments = profile.wofCommanderAssignments ?? {}
+  const wheelHeadsByCommander = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const w of wheelRows) {
+      const spins = wofSpinsByOcc[w.key] ?? 0
+      const cmdId = wofAssignments[w.key]
+      if (spins > 0 && cmdId) {
+        const heads = Math.floor(calcWofPlan({ targetSpins: spins, useBundles: {} }).expectedHeads)
+        map[cmdId] = (map[cmdId] ?? 0) + heads
+      }
+    }
+    return map
+  }, [wheelRows, wofSpinsByOcc, wofAssignments])
+
+  // Universal heads = total expected minus wheel heads that are directly assigned
+  const totalDirectWheelHeads = Object.values(wheelHeadsByCommander).reduce((s, h) => s + h, 0)
+  const universalHeads = totalHeadsExpected - totalDirectWheelHeads
+
+  const commanderBreakdown = profile.commanders.map((cmd) => {
+    const needs = calcCommanderNeeds(cmd)
+    const allocatedFromUniversal = Math.floor(universalHeads * (cmd.allocationPct / 100))
+    const directWheelHeads = wheelHeadsByCommander[cmd.id] ?? 0
+    const totalAllocated = allocatedFromUniversal + directWheelHeads
+    const remaining = Math.max(0, needs.needed - totalAllocated)
+    const pct = needs.needed > 0 ? Math.min(100, Math.round((totalAllocated / needs.needed) * 100)) : 100
+    return { cmd, allocated: totalAllocated, needed: needs.needed, remaining, pct, directWheelHeads }
+  })
 
   return (
     <div className="space-y-6">
@@ -176,6 +203,9 @@ export function ProjectionSummary({ profile }: { profile: AccountProfile }) {
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>
                     {b.allocated} / {b.needed} heads allocated
+                    {b.directWheelHeads > 0 && (
+                      <span className="text-primary ml-1">(incl. {b.directWheelHeads} wheel)</span>
+                    )}
                     {b.remaining > 0 && <span className="text-destructive ml-1">({b.remaining} short)</span>}
                   </span>
                 </div>
