@@ -52,13 +52,14 @@ export function GemsPlanner({
   }, [WOF_SPINS_KEY])
 
   /* ---------- Calculations ---------- */
+  const profileStartDate = profile.startDate
   const mtgRows = useMemo(
-    () => buildMtgRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildMtgRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
   const wheelRows = useMemo(
-    () => buildWheelRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildWheelRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
 
   const mtgGemSpend = mtgRows.reduce(

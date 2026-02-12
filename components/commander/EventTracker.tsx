@@ -135,21 +135,22 @@ export function EventTracker({
   }
 
   /* ---------- Computed Rows ---------- */
+  const profileStartDate = profile.startDate
   const occRows = useMemo(
-    () => buildOccurrenceRows(events, todayStr, goalDateStr, outcomes),
-    [events, todayStr, goalDateStr, outcomes],
+    () => buildOccurrenceRows(events, todayStr, goalDateStr, outcomes, profileStartDate),
+    [events, todayStr, goalDateStr, outcomes, profileStartDate],
   )
   const activeEvents = occRows.filter((r) => r.status === 'active')
   const upcomingEvents = occRows.filter((r) => r.status === 'upcoming')
 
   const mtgRows = useMemo(
-    () => buildMtgRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildMtgRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
 
   const wheelRows = useMemo(
-    () => buildWheelRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildWheelRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
 
   /* ---------- Totals ---------- */
@@ -245,7 +246,7 @@ export function EventTracker({
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-xs text-muted-foreground">
-              Each MTG event lasts 2 days. Select your gem spending per day. Default: 14k/day.
+              Each MTG event lasts 2 days. Select your gem spending per day. Default: skip.
             </p>
             {mtgRows.map((m) => {
               const plan = getMtgPlan(m.key)
@@ -539,7 +540,11 @@ export function EventTracker({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-center">
+            <div className="rounded-lg border border-border bg-secondary/30 p-3">
+              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Starting</p>
+              <p className="text-sm font-bold tabular-nums">{profile.currentGoldHeads ?? 0}</p>
+            </div>
             <div className="rounded-lg border border-border bg-secondary/30 p-3">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">VIP</p>
               <p className="text-sm font-bold tabular-nums">{vipTotal}</p>
@@ -555,7 +560,7 @@ export function EventTracker({
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
               <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Total Expected</p>
               <p className="text-sm font-bold text-primary tabular-nums">
-                {vipTotal + eventHeads + mtgHeads + wheelExpectedHeads}
+                {(profile.currentGoldHeads ?? 0) + vipTotal + eventHeads + mtgHeads + wheelExpectedHeads}
               </p>
             </div>
           </div>

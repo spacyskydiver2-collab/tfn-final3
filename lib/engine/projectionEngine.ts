@@ -8,6 +8,8 @@ import { calcWofPlan } from '@/lib/kvk-engine'
 
 /**
  * Build daily cumulative head data for the progress graph.
+ * Starts from currentGoldHeads baseline.
+ * Merges actual progress entries onto chart rows.
  */
 export function buildChartData(
   daysUntilGoal: number,
@@ -16,6 +18,8 @@ export function buildChartData(
   mtgEvents: { startDate: string; plan: MtgEventPlan }[],
   wheelOccs: { startDate: string; spins: number }[],
   today: Date,
+  currentGoldHeads: number = 0,
+  actualProgress: Record<string, number> = {},
 ): ChartRow[] {
   // Pre-compute event heads by day offset
   const eventByOffset = new Map<number, number>()
@@ -51,23 +55,57 @@ export function buildChartData(
     wheelByOffset.set(offset, (wheelByOffset.get(offset) ?? 0) + h)
   }
 
+  // Build actual progress by day offset
+  const actualByOffset = new Map<number, number>()
+  for (const [dateStr, heads] of Object.entries(actualProgress)) {
+    const d = new Date(dateStr)
+    const offset = Math.floor((d.getTime() - today.getTime()) / 86400000)
+    if (offset >= 0 && offset <= daysUntilGoal) {
+      actualByOffset.set(offset, heads)
+    }
+  }
+
   let vipCum = 0
   let eventCum = 0
   let wheelCum = 0
 
   const rows: ChartRow[] = []
-  for (let d = 0; d <= Math.max(1, daysUntilGoal); d++) {
+  const numDays = Math.max(1, daysUntilGoal)
+  for (let d = 0; d <= numDays; d++) {
     vipCum += vipPerDay
     eventCum += eventByOffset.get(d) ?? 0
     wheelCum += wheelByOffset.get(d) ?? 0
-    rows.push({
+
+    const dateForDay = new Date(today.getTime() + d * 86400000)
+    const dateStr = dateForDay.toISOString().slice(0, 10)
+
+    const row: ChartRow = {
       day: d,
+      date: dateStr,
       vip: vipCum,
       events: eventCum,
       wheel: wheelCum,
-      total: vipCum + eventCum + wheelCum,
-    })
+      total: currentGoldHeads + vipCum + eventCum + wheelCum,
+    }
+
+    if (actualByOffset.has(d)) {
+      row.actual = actualByOffset.get(d)
+    }
+
+    rows.push(row)
   }
+
+  // For actual progress, connect values across gaps by filling forward
+  let lastActual: number | undefined = undefined
+  for (const row of rows) {
+    if (row.actual !== undefined) {
+      lastActual = row.actual
+    } else if (lastActual !== undefined && row.day <= numDays) {
+      // Only fill forward up to the last recorded day
+      // Don't fill forward past the last actual entry
+    }
+  }
+
   return rows
 }
 

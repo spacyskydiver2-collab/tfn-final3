@@ -36,17 +36,18 @@ export function ProjectionSummary({ profile }: { profile: AccountProfile }) {
   }, [OUTCOME_KEY, MTG_KEY, WOF_SPINS_KEY])
 
   /* ---------- Calculations ---------- */
+  const profileStartDate = profile.startDate
   const occRows = useMemo(
-    () => buildOccurrenceRows(events, todayStr, goalDateStr, outcomes),
-    [events, todayStr, goalDateStr, outcomes],
+    () => buildOccurrenceRows(events, todayStr, goalDateStr, outcomes, profileStartDate),
+    [events, todayStr, goalDateStr, outcomes, profileStartDate],
   )
   const mtgRows = useMemo(
-    () => buildMtgRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildMtgRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
   const wheelRows = useMemo(
-    () => buildWheelRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildWheelRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
 
   const eventHeads = occRows.reduce((s, r) => s + r.headsCounted, 0)
@@ -64,8 +65,9 @@ export function ProjectionSummary({ profile }: { profile: AccountProfile }) {
     return Math.floor(calcWofPlan({ targetSpins: totalWheelSpins, useBundles: {} }).expectedHeads)
   }, [totalWheelSpins])
 
+  const currentGoldHeads = profile.currentGoldHeads ?? 0
   const vipHeads = calcVipHeads(profile.vipLevel, profile.daysUntilGoal)
-  const totalHeadsExpected = calcTotalProjectedHeads(vipHeads, eventHeads, mtgHeads, wofHeads)
+  const totalHeadsExpected = currentGoldHeads + calcTotalProjectedHeads(vipHeads, eventHeads, mtgHeads, wofHeads)
   const totalHeadsNeeded = calcTotalHeadsNeeded(profile.commanders)
   const headsMissing = Math.max(0, totalHeadsNeeded - totalHeadsExpected)
   const headProgressPct = totalHeadsNeeded > 0
@@ -112,7 +114,11 @@ export function ProjectionSummary({ profile }: { profile: AccountProfile }) {
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-5">
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-center">
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Starting</p>
+                <p className="text-sm font-bold text-foreground tabular-nums">{currentGoldHeads}</p>
+              </div>
               <div>
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">VIP Income</p>
                 <p className="text-sm font-bold text-foreground tabular-nums">{vipHeads}</p>

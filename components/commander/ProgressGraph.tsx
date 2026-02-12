@@ -2,15 +2,18 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Button } from '@/components/ui/button'
+import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
-import { TrendingUp } from 'lucide-react'
+import { TrendingUp, Save } from 'lucide-react'
 import {
   LineChart,
   Line,
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
   ResponsiveContainer,
 } from 'recharts'
@@ -23,13 +26,20 @@ import { calcVipHeads, VIP_HEADS_PER_DAY } from '@/lib/engine/incomeEngine'
 import { calcTotalProjectedHeads } from '@/lib/engine/incomeEngine'
 import { calcWofPlan } from '@/lib/kvk-engine'
 
-export function ProgressGraph({ profile }: { profile: AccountProfile }) {
+export function ProgressGraph({
+  profile,
+  onUpdate,
+}: {
+  profile: AccountProfile
+  onUpdate: (p: AccountProfile) => void
+}) {
   const { events } = useEvents()
 
   const today = new Date()
   const todayStr = today.toISOString().slice(0, 10)
   const goalDate = new Date(today.getTime() + profile.daysUntilGoal * 86400000)
   const goalDateStr = goalDate.toISOString().slice(0, 10)
+  const profileStartDate = profile.startDate
 
   /* ---------- Load persisted state ---------- */
   const OUTCOME_KEY = `gh_outcomes_${profile.id}`
@@ -46,21 +56,38 @@ export function ProgressGraph({ profile }: { profile: AccountProfile }) {
     try { setWofSpinsByOcc(JSON.parse(localStorage.getItem(WOF_SPINS_KEY) || '{}')) } catch { setWofSpinsByOcc({}) }
   }, [OUTCOME_KEY, MTG_KEY, WOF_SPINS_KEY])
 
+  /* ---------- Actual progress input ---------- */
+  const actualProgress = profile.actualProgress ?? {}
+  const todayActual = actualProgress[todayStr] ?? ''
+  const [actualInput, setActualInput] = useState<string>('')
+
+  useEffect(() => {
+    setActualInput(actualProgress[todayStr]?.toString() ?? '')
+  }, [todayStr, profile.id])
+
+  const saveActualProgress = () => {
+    const val = Number(actualInput)
+    if (isNaN(val) || val < 0) return
+    const updated = { ...actualProgress, [todayStr]: val }
+    onUpdate({ ...profile, actualProgress: updated })
+  }
+
   /* ---------- Build chart data ---------- */
   const occRows = useMemo(
-    () => buildOccurrenceRows(events, todayStr, goalDateStr, outcomes),
-    [events, todayStr, goalDateStr, outcomes],
+    () => buildOccurrenceRows(events, todayStr, goalDateStr, outcomes, profileStartDate),
+    [events, todayStr, goalDateStr, outcomes, profileStartDate],
   )
   const mtgRows = useMemo(
-    () => buildMtgRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildMtgRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
   const wheelRows = useMemo(
-    () => buildWheelRows(events, todayStr, goalDateStr),
-    [events, todayStr, goalDateStr],
+    () => buildWheelRows(events, todayStr, goalDateStr, profileStartDate),
+    [events, todayStr, goalDateStr, profileStartDate],
   )
 
   const vipPerDay = VIP_HEADS_PER_DAY[profile.vipLevel] ?? 0
+  const currentGoldHeads = profile.currentGoldHeads ?? 0
 
   const chartData = useMemo(() => {
     const mtgEventsForChart = mtgRows.map((m) => ({
@@ -80,8 +107,10 @@ export function ProgressGraph({ profile }: { profile: AccountProfile }) {
       mtgEventsForChart,
       wheelOccsForChart,
       today,
+      currentGoldHeads,
+      actualProgress,
     )
-  }, [profile.daysUntilGoal, vipPerDay, occRows, mtgRows, mtgPlans, wheelRows, wofSpinsByOcc, today])
+  }, [profile.daysUntilGoal, vipPerDay, occRows, mtgRows, mtgPlans, wheelRows, wofSpinsByOcc, today, currentGoldHeads, actualProgress])
 
   /* ---------- Summary ---------- */
   const vipHeads = calcVipHeads(profile.vipLevel, profile.daysUntilGoal)
@@ -99,65 +128,150 @@ export function ProgressGraph({ profile }: { profile: AccountProfile }) {
     return Math.floor(calcWofPlan({ targetSpins: totalWheelSpins, useBundles: {} }).expectedHeads)
   }, [totalWheelSpins])
 
-  const totalHeadsExpected = calcTotalProjectedHeads(vipHeads, eventHeads, mtgHeads, wofHeads)
+  const totalHeadsExpected = currentGoldHeads + calcTotalProjectedHeads(vipHeads, eventHeads, mtgHeads, wofHeads)
   const totalHeadsNeeded = calcTotalHeadsNeeded(profile.commanders)
   const completionPct = totalHeadsNeeded > 0
     ? Math.min(100, Math.round((totalHeadsExpected / totalHeadsNeeded) * 100))
     : 0
 
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <TrendingUp className="h-4 w-4 text-primary" />
-          Progress Graph
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="h-[280px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis
-                dataKey="day"
-                tick={{ fontSize: 11 }}
-                className="text-muted-foreground"
-                label={{ value: 'Days', position: 'insideBottom', offset: -5, fontSize: 11 }}
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                className="text-muted-foreground"
-                label={{ value: 'Gold Heads', angle: -90, position: 'insideLeft', fontSize: 11 }}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '0.5rem',
-                  fontSize: 12,
-                }}
-                labelStyle={{ color: 'hsl(var(--foreground))' }}
-              />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="vip" name="VIP" stroke="hsl(var(--chart-1))" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="events" name="Events" stroke="hsl(var(--chart-2))" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="wheel" name="Wheel" stroke="hsl(var(--chart-3))" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="total" name="Total" stroke="hsl(var(--primary))" dot={false} strokeWidth={2.5} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
+  /* ---------- Actual progress history ---------- */
+  const progressEntries = Object.entries(actualProgress)
+    .sort(([a], [b]) => b.localeCompare(a))
+    .slice(0, 10)
 
-        {totalHeadsNeeded > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>0 heads</span>
-              <span className="font-semibold text-foreground">{completionPct}% of goal</span>
-              <span>{totalHeadsNeeded} needed</span>
+  // Check if we have any actual data points for the legend
+  const hasActualData = chartData.some((r) => r.actual !== undefined)
+
+  return (
+    <div className="space-y-6">
+      {/* Actual Progress Input */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Save className="h-4 w-4 text-primary" />
+            Log Actual Progress
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Enter your total gold heads right now. This adds a data point for today on the graph.
+          </p>
+          <div className="flex items-end gap-3">
+            <div className="flex-1 space-y-1">
+              <Label className="text-xs">Total Gold Heads (today: {todayStr})</Label>
+              <Input
+                type="number"
+                value={actualInput}
+                onChange={(e) => setActualInput(e.target.value)}
+                placeholder="e.g. 150"
+                min={0}
+              />
             </div>
-            <Progress value={completionPct} className="h-3" />
+            <Button onClick={saveActualProgress} className="gap-1.5">
+              <Save className="h-3.5 w-3.5" />
+              Save
+            </Button>
           </div>
-        )}
-      </CardContent>
-    </Card>
+
+          {progressEntries.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-xs font-semibold text-muted-foreground">Recent entries</p>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                {progressEntries.map(([date, heads]) => (
+                  <div
+                    key={date}
+                    className="flex items-center justify-between rounded-md border border-border bg-secondary/20 px-2.5 py-1.5 text-xs"
+                  >
+                    <span className="text-muted-foreground">{date}</span>
+                    <span className="font-semibold text-foreground tabular-nums">{heads}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Graph */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4 text-primary" />
+            Progress Graph
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="h-[320px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                <XAxis
+                  dataKey="day"
+                  tick={{ fontSize: 11 }}
+                  className="text-muted-foreground"
+                  label={{ value: 'Days', position: 'insideBottom', offset: -5, fontSize: 11 }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  className="text-muted-foreground"
+                  label={{ value: 'Gold Heads', angle: -90, position: 'insideLeft', fontSize: 11 }}
+                />
+                <RechartsTooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload || payload.length === 0) return null
+                    const row = chartData[label as number]
+                    return (
+                      <div className="rounded-lg border border-border bg-card p-3 shadow-md space-y-1">
+                        <p className="text-xs font-semibold text-foreground">
+                          Day {label} {row?.date ? `(${row.date})` : ''}
+                        </p>
+                        {payload.map((entry: { name: string; value: number; color: string }) => (
+                          <p key={entry.name} className="text-xs" style={{ color: entry.color }}>
+                            {entry.name}: <span className="font-semibold tabular-nums">{entry.value}</span>
+                          </p>
+                        ))}
+                        {row?.actual !== undefined && !payload.some((p: { name: string }) => p.name === 'Actual') && (
+                          <p className="text-xs text-emerald-500">
+                            {'Actual: '}<span className="font-semibold tabular-nums">{row.actual}</span>
+                          </p>
+                        )}
+                      </div>
+                    )
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="vip" name="VIP" stroke="hsl(var(--chart-1))" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="events" name="Events" stroke="hsl(var(--chart-2))" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="wheel" name="Wheel" stroke="hsl(var(--chart-3))" dot={false} strokeWidth={2} />
+                <Line type="monotone" dataKey="total" name="Expected Total" stroke="hsl(var(--primary))" dot={false} strokeWidth={2.5} />
+                {hasActualData && (
+                  <Line
+                    type="monotone"
+                    dataKey="actual"
+                    name="Actual"
+                    stroke="hsl(var(--chart-4, 142 71% 45%))"
+                    dot={{ r: 3, fill: 'hsl(var(--chart-4, 142 71% 45%))' }}
+                    strokeWidth={2.5}
+                    strokeDasharray="5 3"
+                    connectNulls
+                  />
+                )}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {totalHeadsNeeded > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{currentGoldHeads} starting</span>
+                <span className="font-semibold text-foreground">{completionPct}% of goal</span>
+                <span>{totalHeadsNeeded} needed</span>
+              </div>
+              <Progress value={completionPct} className="h-3" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }
