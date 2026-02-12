@@ -1,7 +1,7 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import {
@@ -13,10 +13,84 @@ import {
 } from '@/components/ui/select'
 import { Slider } from '@/components/ui/slider'
 import { Progress } from '@/components/ui/progress'
-import { Plus, Trash2, Crown } from 'lucide-react'
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import { Badge } from '@/components/ui/badge'
+import { Plus, Trash2, Crown, ChevronsUpDown, Check } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { AccountProfile, CommanderGoal } from '@/lib/engine/types'
 import type { CommanderSkillSet } from '@/lib/kvk-engine'
 import { calcCommanderNeeds } from '@/lib/engine/commanderEngine'
+import { getCommanderRoster, getCommanderSeasons, type CommanderEntry } from '@/lib/commander-data'
+
+/* ---- Searchable Commander Combobox ---- */
+
+function CommanderCombobox({
+  roster,
+  value,
+  onSelect,
+}: {
+  roster: CommanderEntry[]
+  value: string
+  onSelect: (name: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between bg-transparent font-normal"
+        >
+          {value || 'Select commander...'}
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search commanders..." />
+          <CommandList>
+            <CommandEmpty>No commander found.</CommandEmpty>
+            <CommandGroup>
+              {roster.map((entry) => (
+                <CommandItem
+                  key={entry.id}
+                  value={entry.name}
+                  onSelect={() => {
+                    onSelect(entry.name)
+                    setOpen(false)
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      'mr-2 h-4 w-4',
+                      value === entry.name ? 'opacity-100' : 'opacity-0',
+                    )}
+                  />
+                  {entry.name}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 function createDefaultCommander(name?: string): CommanderGoal {
   return {
@@ -36,6 +110,7 @@ export function CommandersSection({
   profile: AccountProfile
   onUpdate: (p: AccountProfile) => void
 }) {
+  const roster = useMemo(() => getCommanderRoster(), [])
   const skillLabels = ['1st Skill', '2nd Skill', '3rd Skill', '4th Skill']
 
   const addCommander = () => {
@@ -140,30 +215,27 @@ export function CommandersSection({
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-xs">Commander Name</Label>
-                      <Input
-                        value={cmd.name}
-                        onChange={(e) => updateCommander(cmd.id, { name: e.target.value })}
-                        placeholder="e.g. YSG, Alex, Guan Yu"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-xs">Rarity</Label>
-                      <Select
-                        value={cmd.rarity}
-                        onValueChange={(v) => updateCommander(cmd.id, { rarity: v as 'legendary' | 'epic' })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="legendary">Legendary</SelectItem>
-                          <SelectItem value="epic">Epic</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Commander Name</Label>
+                    <CommanderCombobox
+                      roster={roster}
+                      value={cmd.name}
+                      onSelect={(name) => updateCommander(cmd.id, { name, rarity: 'legendary' })}
+                    />
+                    {cmd.name && (() => {
+                      const seasons = getCommanderSeasons(cmd.name, roster)
+                      if (seasons.length === 0) return null
+                      return (
+                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                          <span className="text-[10px] text-muted-foreground">Appears in:</span>
+                          {seasons.map((s) => (
+                            <Badge key={s} variant="secondary" className="text-[10px] px-1.5 py-0">
+                              {s}
+                            </Badge>
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Skill levels */}

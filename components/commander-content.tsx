@@ -22,15 +22,18 @@ import {
   Package,
   Users,
   BarChart3,
+  Shield,
 } from 'lucide-react'
 import type { AccountProfile } from '@/lib/engine/types'
 import { VIP_HEADS_PER_DAY } from '@/lib/kvk-engine'
+import { useAuth } from '@/lib/auth-context'
 import { CommandersSection } from '@/components/commander/CommandersSection'
 import { WheelOfFortuneSection } from '@/components/commander/WheelOfFortuneSection'
 import { EventTracker } from '@/components/commander/EventTracker'
 import { GemsPlanner } from '@/components/commander/GemsPlanner'
 import { ProjectionSummary } from '@/components/commander/ProjectionSummary'
 import { ProgressGraph } from '@/components/commander/ProgressGraph'
+import { AdminCommanderManager } from '@/components/commander/AdminCommanderManager'
 
 /* ================================================================ */
 /*  SAVE / LOAD                                                       */
@@ -241,24 +244,28 @@ function ProfileContent({
   profile: AccountProfile
   onUpdate: (p: AccountProfile) => void
 }) {
+  const { user } = useAuth()
   const [activeSection, setActiveSection] = useState<
-    'commanders' | 'wheel' | 'income' | 'gems' | 'overview' | 'graph'
+    'commanders' | 'wheel' | 'income' | 'gems' | 'overview' | 'graph' | 'admin'
   >('commanders')
 
-  const TABS = [
-    { id: 'commanders' as const, label: 'Commanders', icon: Crown },
-    { id: 'wheel' as const, label: 'Wheel of Fortune', icon: Dices },
-    { id: 'income' as const, label: 'Event Tracker', icon: Package },
-    { id: 'gems' as const, label: 'Gems Planner', icon: Gem },
-    { id: 'overview' as const, label: 'Overview', icon: TrendingUp },
-    { id: 'graph' as const, label: 'Graph', icon: BarChart3 },
+  const TABS: { id: typeof activeSection; label: string; icon: typeof Crown; adminOnly?: boolean }[] = [
+    { id: 'commanders', label: 'Commanders', icon: Crown },
+    { id: 'wheel', label: 'Wheel of Fortune', icon: Dices },
+    { id: 'income', label: 'Event Tracker', icon: Package },
+    { id: 'gems', label: 'Gems Planner', icon: Gem },
+    { id: 'overview', label: 'Overview', icon: TrendingUp },
+    { id: 'graph', label: 'Graph', icon: BarChart3 },
+    { id: 'admin', label: 'Admin', icon: Shield, adminOnly: true },
   ]
+
+  const visibleTabs = TABS.filter((t) => !t.adminOnly || user?.isAdmin)
 
   return (
     <div className="space-y-6">
       {/* Section tabs */}
       <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => {
+        {visibleTabs.map((t) => {
           const Icon = t.icon
           const active = activeSection === t.id
           return (
@@ -284,6 +291,7 @@ function ProfileContent({
       {activeSection === 'gems' && <GemsPlanner profile={profile} onUpdate={onUpdate} />}
       {activeSection === 'overview' && <ProjectionSummary profile={profile} />}
       {activeSection === 'graph' && <ProgressGraph profile={profile} />}
+      {activeSection === 'admin' && <AdminCommanderManager />}
     </div>
   )
 }
