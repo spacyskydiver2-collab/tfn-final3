@@ -1,12 +1,20 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Dices } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
+import { Dices, Info, ChevronDown } from 'lucide-react'
+import { cn } from '@/lib/utils'
 import type { AccountProfile } from '@/lib/engine/types'
+import { getCommandersBySeason } from '@/lib/commander-data'
 import {
   type WofPlanInput,
   calcWofPlan,
@@ -42,8 +50,55 @@ export function WheelOfFortuneSection({
     })
   }
 
+  const seasonGroups = useMemo(() => getCommandersBySeason(), [])
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+
   return (
     <div className="space-y-6">
+      {/* Commander Wheel Schedule Info Tip */}
+      <Collapsible open={scheduleOpen} onOpenChange={setScheduleOpen}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <button className="flex w-full items-center justify-between px-6 py-4 text-left">
+              <div className="flex items-center gap-2">
+                <Info className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold text-foreground">Commander Wheel Schedule</span>
+              </div>
+              <ChevronDown
+                className={cn(
+                  'h-4 w-4 text-muted-foreground transition-transform duration-200',
+                  scheduleOpen && 'rotate-180',
+                )}
+              />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="pt-0 pb-5 space-y-4">
+              <p className="text-xs text-muted-foreground">
+                Which legendary commanders appear on the Wheel of Fortune depends on your kingdom age / season.
+              </p>
+              <div className="space-y-3">
+                {seasonGroups.map(({ season, commanders }) => (
+                  <div key={season} className="space-y-1.5">
+                    <p className="text-xs font-semibold text-foreground">{season}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {commanders.map((name) => (
+                        <Badge key={name} variant="secondary" className="text-[11px] px-2 py-0.5">
+                          {name}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {seasonGroups.length === 0 && (
+                <p className="text-xs text-muted-foreground italic">No commanders configured yet.</p>
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
       {/* Fortune Shop Reference */}
       <Card>
         <CardHeader className="pb-3">
